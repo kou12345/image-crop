@@ -1,0 +1,20 @@
+{
+  "name": "image-crop",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "sharp": "^0.33.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12"
+  }
+}
