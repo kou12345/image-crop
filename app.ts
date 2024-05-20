@@ -1,67 +1,63 @@
 import sharp = require("sharp");
-import fs = require("fs");
 
-const path = "/Users/kou12345/Downloads/heic1901a (1).tif";
+const path = "/Users/koichiro-hira/Desktop/シマダヤ0503既存文字-4c.jpg";
 
-const targetSize = 4 * 1024 * 1024; // 4MB
-const outputPrefix = "output/output";
+const outputSizes = [
+  // { width: 1092, height: 1092, aspect: "1:1" },
+  // { width: 951, height: 1268, aspect: "3:4" },
+  // { width: 896, height: 1344, aspect: "2:3" },
+  // { width: 819, height: 1456, aspect: "9:16" },
+  { width: 784, height: 1568, aspect: "1:2" },
+];
 
-const splitImageRecursive = async (
-  inputPath: string,
-  outputPath: string,
-  top: number,
-  height: number
-) => {
-  const halfHeight = Math.ceil(height / 2);
-
-  // 上半分の画像を抽出して保存
-  const topOutputPath = `${outputPath}_top.jpg`;
-  await sharp(inputPath)
-    .extract({
-      left: 0,
-      top,
-      width: (await sharp(inputPath).metadata()).width!,
-      height: halfHeight,
-    })
-    .toFile(topOutputPath);
-
-  // 上半分の画像のファイルサイズを確認
-  const topFileSize = fs.statSync(topOutputPath).size;
-  if (topFileSize > targetSize) {
-    // 上半分の画像が4MBを超える場合、再度二等分
-    await splitImageRecursive(inputPath, `${outputPath}_top`, top, halfHeight);
-    fs.unlinkSync(topOutputPath); // 中間ファイルを削除
-  }
-
-  // 下半分の画像を抽出して保存
-  const bottomOutputPath = `${outputPath}_bottom.jpg`;
-  await sharp(inputPath)
-    .extract({
-      left: 0,
-      top: top + halfHeight,
-      width: (await sharp(inputPath).metadata()).width!,
-      height: height - halfHeight,
-    })
-    .toFile(bottomOutputPath);
-
-  // 下半分の画像のファイルサイズを確認
-  const bottomFileSize = fs.statSync(bottomOutputPath).size;
-  if (bottomFileSize > targetSize) {
-    // 下半分の画像が4MBを超える場合、再度二等分
-    await splitImageRecursive(
-      inputPath,
-      `${outputPath}_bottom`,
-      top + halfHeight,
-      height - halfHeight
-    );
-    fs.unlinkSync(bottomOutputPath); // 中間ファイルを削除
-  }
-};
+const overlapPixels = 100; // 重複させるピクセル数
 
 const splitImage = async () => {
   const metadata = await sharp(path).metadata();
-  await splitImageRecursive(path, outputPrefix, 0, metadata.height!);
-  console.log("Image split completed.");
+  const aspectRatio = metadata.width! / metadata.height!;
+
+  for (const size of outputSizes) {
+    if (metadata.width! <= size.width && metadata.height! <= size.height) {
+      console.log(
+        `Image dimensions (${metadata.width}x${metadata.height}) are within the specified size (${size.width}x${size.height}). Skipping split.`
+      );
+      continue;
+    }
+
+    const outputAspectRatio = size.width / size.height;
+    let outputWidth, outputHeight;
+
+    if (aspectRatio > outputAspectRatio) {
+      outputWidth = size.width;
+      outputHeight = Math.round(size.width / aspectRatio);
+    } else {
+      outputWidth = Math.round(size.height * aspectRatio);
+      outputHeight = size.height;
+    }
+
+    const numColumns = Math.ceil(
+      (metadata.width! - overlapPixels) / (outputWidth - overlapPixels)
+    );
+    const numRows = Math.ceil(
+      (metadata.height! - overlapPixels) / (outputHeight - overlapPixels)
+    );
+
+    for (let row = 0; row < numRows; row++) {
+      for (let col = 0; col < numColumns; col++) {
+        const left = col * (outputWidth - overlapPixels);
+        const top = row * (outputHeight - overlapPixels);
+        const width = Math.min(outputWidth, metadata.width! - left);
+        const height = Math.min(outputHeight, metadata.height! - top);
+
+        const outputPath = `output_${size.aspect}_${row}_${col}.jpg`;
+        await sharp(path)
+          .extract({ left, top, width, height })
+          .toFile(outputPath);
+
+        console.log(`Image split and saved as ${outputPath}`);
+      }
+    }
+  }
 };
 
 splitImage().catch(console.error);
